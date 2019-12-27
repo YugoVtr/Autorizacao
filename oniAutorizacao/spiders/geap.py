@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import scrapy
+from twisted.internet.error import DNSLookupError
+from twisted.internet.error import TimeoutError, TCPTimedOutError
 
 class GeapSpider(scrapy.Spider):
     name = 'geap'
@@ -25,13 +27,30 @@ class GeapSpider(scrapy.Spider):
         )
     
     def scrape_pages(self, response):
-        url = 'https://www.geap.com.br/prestador/RedirectRegulacaoTiss.asp'
-        return scrapy.Request(url=url, callback=self.solicitacaoSADT)
+        url = '/prestador/RedirectRegulacaoTiss.asp'
+        return response.follow(url=url, callback=self.solicitacaoSADT, errback=self.errback)
 
     def solicitacaoSADT(self, response):
-        url = 'https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx'
-        return scrapy.Request(url=url, callback=self.autorizacao)
+        url = '/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx'
+        return response.follow(url=url, callback=self.autorizacao, errback=self.errback)
 
     def autorizacao(self, response):
         scrapy.utils.response.open_in_browser(response)
+
+    # Tratar erros nas requests
+    def errback(self, failure):
+        if failure.check(scrapy.spidermiddlewares.httperror.HttpError):
+            response = failure.value.response
+            self.logger.error('HttpError on %s', response.url)
+
+        elif failure.check(DNSLookupError):
+            request = failure.request
+            self.logger.error('DNSLookupError on %s', request.url)
+
+        elif failure.check(TimeoutError, TCPTimedOutError):
+            request = failure.request
+            self.logger.error('TimeoutError on %s', request.url)
+
+        else: 
+            self.logger.error(repr(failure))
 
