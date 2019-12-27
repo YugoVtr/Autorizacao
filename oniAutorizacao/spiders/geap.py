@@ -7,15 +7,19 @@ class GeapSpider(scrapy.Spider):
     name = 'geap'
     allowed_domains = ['geap.com.br']
     start_urls = ['http://geap.com.br/']
+    login = {
+        "nrocontratado":"23022809", 
+        "senha":"cjl38050",
+        "seletor":"1"
+    }
 
     # Faz o login 
     def parse(self, response):
-        settings = scrapy.conf.settings
         form_data = {
-            'seletor': settings['SELETOR'],
+            'seletor': self.login['seletor'],
             'NroCPFCliente':'',
-            'senha': settings['SENHA'],
-            'NroContratado': settings['NROCONTRATADO'],
+            'senha': self.login['senha'],
+            'NroContratado': self.login['nrocontratado'],
             'NroConveniada':'',
             'SglConveniada':'',
             'NroCPF':'',
