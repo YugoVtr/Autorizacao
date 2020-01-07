@@ -8,6 +8,9 @@ else
 	make run
 endif
 
+http: 
+	scrapyrt -p 3000
+
 run:
 	scrapy crawl geap
 

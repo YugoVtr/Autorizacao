@@ -60,6 +60,13 @@ class GeapSpider(scrapy.Spider):
         with open("logs/geap_response.html", 'w') as file:
             file.write( response.body )
 
+        msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
+        yield { 
+            "error": msg_error
+        }
+        
+        
+
     ########################## TRATAR ERROS NAS REQUESTS ##########################
     def errback(self, failure):
         if failure.check(scrapy.spidermiddlewares.httperror.HttpError):

@@ -6,3 +6,4 @@ cryptography==2.8
 pyOpenSSL==19.1.0
 Scrapy==1.6.0
 ipdb==0.12.3
+scrapyrt
