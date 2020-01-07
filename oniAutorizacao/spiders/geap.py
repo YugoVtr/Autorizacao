@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-import scrapy
-import json
+import scrapy, logging, json
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -8,6 +7,13 @@ class GeapSpider(scrapy.Spider):
     name = 'geap'
     allowed_domains = ['geap.com.br']
     start_urls = ['http://geap.com.br/']
+
+    # Configuracao de log
+    scrapy.utils.log.configure_logging(install_root_handler=False)
+    logging.basicConfig(
+        filename="log/{0}.log".format( name ),
+        level=logging.DEBUG
+    )
 
     # Faz o login 
     def parse(self, response):
