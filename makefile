@@ -2,10 +2,10 @@
 
 all: 
 ifneq ($(wildcard logs),)
-	make run
+	make http
 else
 	make bootstrap
-	make run
+	make http
 endif
 
 http: 
