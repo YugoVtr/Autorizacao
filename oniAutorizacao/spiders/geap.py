@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import scrapy
+import json
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -7,27 +8,13 @@ class GeapSpider(scrapy.Spider):
     name = 'geap'
     allowed_domains = ['geap.com.br']
     start_urls = ['http://geap.com.br/']
-    login = {
-        "nrocontratado":"23022809", 
-        "senha":"cjl38050",
-        "seletor":"1"
-    }
 
     # Faz o login 
     def parse(self, response):
-        form_data = {
-            'seletor': self.login['seletor'],
-            'NroCPFCliente':'',
-            'senha': self.login['senha'],
-            'NroContratado': self.login['nrocontratado'],
-            'NroConveniada':'',
-            'SglConveniada':'',
-            'NroCPF':'',
-            'NmeUsuario':''
-        }
+        form_autenticacao = self.json_file_to_dict('autenticacao')
         return scrapy.FormRequest.from_response(
             response,
-            formdata=form_data,
+            formdata=form_autenticacao,
             callback=self.scrape_pages
         )
     
@@ -46,11 +33,22 @@ class GeapSpider(scrapy.Spider):
         return scrapy.FormRequest.from_response(
             response,
             formdata={"Transaction":"FormNew"},
-            callback=self.autorizacao
+            callback=self.submit_form
         )
 
     # Criar o formulario com autorizacao e submiter
-    def autorizacao(self, response):
+    def submit_form(self, response):
+        formulario = self.json_file_to_dict('concluir')
+        formulario["__VIEWSTATE"] = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
+        formulario["TabContainerControl1_ClientState"] = response.selector.xpath('//*[@id="TabContainerControl1_ClientState"]/@value').get()
+        return scrapy.FormRequest.from_response(
+            response, 
+            formdata=formulario, 
+            callback=self.callback
+        )
+
+    # Carregar formulario e submeter
+    def callback(self, response): 
         # import ipdb; ipdb.set_trace()
         scrapy.utils.response.open_in_browser(response)
 
@@ -70,3 +68,10 @@ class GeapSpider(scrapy.Spider):
 
         else: 
             self.logger.error(repr(failure))
+
+    ############################# FUNCOES HELPERS #############################
+    def json_file_to_dict(self, file_name):
+        relative_path = "formularios/{}.json".format(file_name)
+        with open(relative_path, 'r') as file:
+            return dict( json.loads( file.read() ))
+
