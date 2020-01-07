@@ -11,7 +11,7 @@ class GeapSpider(scrapy.Spider):
     # Configuracao de log
     scrapy.utils.log.configure_logging(install_root_handler=False)
     logging.basicConfig(
-        filename="log/{0}.log".format( name ),
+        filename="logs/{0}.log".format( name ),
         level=logging.DEBUG
     )
 

@@ -1,18 +1,11 @@
+.PHONY: run clean bootstrap
+
 run:
 	scrapy crawl geap
 
 clean:
-	rm -rf log/*
+	rm -rf ./logs/*
 
-bootstrap: _virtualenv
-	_virtualenv/bin/pip install -e .
-ifneq ($(wildcard requirements.txt),)
-	_virtualenv/bin/pip install -r test-requirements.txt
-endif
+bootstrap: 
+	pip install -r requirements.txt
 	make clean
-
-_virtualenv:
-	python3 -m venv _virtualenv
-	_virtualenv/bin/pip install --upgrade pip
-	_virtualenv/bin/pip install --upgrade setuptools
-	_virtualenv/bin/pip install --upgrade wheel
