@@ -57,6 +57,8 @@ class GeapSpider(scrapy.Spider):
     def callback(self, response): 
         # import ipdb; ipdb.set_trace()
         scrapy.utils.response.open_in_browser(response)
+        with open("logs/geap_response.html", 'w') as file:
+            file.write( response.body )
 
     ########################## TRATAR ERROS NAS REQUESTS ##########################
     def errback(self, failure):
