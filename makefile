@@ -1,4 +1,4 @@
-.PHONY: all run clean bootstrap
+.PHONY: all run http dev clean bootstrap
 
 all: 
 ifneq ($(wildcard logs),)
@@ -8,11 +8,15 @@ else
 	make http
 endif
 
+run:
+	scrapy crawl geap
+
 http: 
 	scrapyrt -p 3000
 
-run:
-	scrapy crawl geap
+dev: 
+	echo > logs/itens.json
+	scrapy crawl geap -o logs/itens.json
 
 clean:
 	rm -rf ./logs/*

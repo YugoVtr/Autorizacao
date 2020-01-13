@@ -11,4 +11,4 @@ NEWSPIDER_MODULE = 'oniAutorizacao.spiders'
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
 
-LOG_LEVEL = 'ERROR'
+LOG_LEVEL = 'DEBUG'
