@@ -2,3 +2,5 @@
 **/*.log
 **/*.html
 **/*.pyc
+build
+project.egg-info

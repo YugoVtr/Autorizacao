@@ -8,13 +8,6 @@ class GeapSpider(scrapy.Spider):
     allowed_domains = ['geap.com.br']
     start_urls = ['http://geap.com.br/']
 
-    # Configuracao de log
-    scrapy.utils.log.configure_logging(install_root_handler=False)
-    logging.basicConfig(
-        filename="logs/{0}.log".format( name ),
-        level=logging.DEBUG
-    )
-
     # Faz o login 
     def parse(self, response):
         form_autenticacao = self.json_file_to_dict('autenticacao')
