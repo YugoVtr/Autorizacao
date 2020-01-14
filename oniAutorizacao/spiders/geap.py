@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import scrapy, logging, json, re
+import scrapy, logging, json, re, pkgutil
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -87,9 +87,7 @@ class GeapSpider(scrapy.Spider):
     def callback(self, response): 
         # import ipdb; ipdb.set_trace()
         scrapy.utils.response.open_in_browser(response)
-        with open("logs/geap_response.html", 'w') as file:
-            file.write( response.body.decode("utf-8") )
-
+        
         msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
         if msg_error:
             
@@ -138,7 +136,6 @@ class GeapSpider(scrapy.Spider):
 
     ############################# FUNCOES HELPERS #############################
     def json_file_to_dict(self, file_name):
-        relative_path = "formularios/{}.json".format(file_name)
-        with open(relative_path, 'r') as file:
-            return dict( json.loads( file.read() ))
+        content = pkgutil.get_data("oniAutorizacao","resources/formularios/{}.json".format(file_name))
+        return dict( json.loads( content ))
 

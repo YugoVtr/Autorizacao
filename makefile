@@ -15,8 +15,8 @@ http:
 	scrapyrt -p 3000
 
 dev: 
-	echo > logs/itens.json
-	scrapy crawl geap -o logs/itens.json
+	echo > resources/logs/itens.json
+	scrapy crawl geap -o resources/logs/itens.json
 
 clean:
 	rm -rf ./logs/*
