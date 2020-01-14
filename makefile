@@ -1,22 +1,30 @@
-.PHONY: all run http dev clean bootstrap
+.PHONY: all run api dev deploy clean bootstrap
+
+APIKEY = 0cb86e0da29249e8a5f15982f9495452
 
 all: 
-ifneq ($(wildcard logs),)
-	make http
+ifneq ($(wildcard scrapinghub.yml),)
+	make api
 else
-	make bootstrap
-	make http
+	make dev
 endif
 
 run:
 	scrapy crawl geap
 
-http: 
-	scrapyrt -p 3000
+api: 
+	curl -u $(APIKEY): https://app.scrapinghub.com/api/run.json \
+		-d project=425142 \
+		-d spider=geap \
+		-d job_settings='{"LOG_LEVEL": "WARNING"}'
+	curl -u $(APIKEY): https://storage.scrapinghub.com/items/425142/1
 
 dev: 
-	echo > resources/logs/itens.json
-	scrapy crawl geap -o resources/logs/itens.json
+	echo > oniAutorizacao/resources/logs/itens.json
+	scrapy crawl geap -o oniAutorizacao/resources/logs/itens.json
+
+deploy:
+	shub deploy 425142
 
 clean:
 	rm -rf ./logs/*
