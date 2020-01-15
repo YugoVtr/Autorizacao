@@ -6,44 +6,27 @@ from twisted.internet.error import TimeoutError, TCPTimedOutError
 class GeapSpider(scrapy.Spider):
     name = 'geap'
     allowed_domains = ['geap.com.br']
-    start_urls = ['http://geap.com.br/']
-
+    start_urls = ['https://www.geap.com.br/Login.aspx?ReturnUrl=regulacaoTiss/default.aspx&Procedure=ww_usr_CheckWWWPrestador']
+    
     # Faz o login 
     def parse(self, response):
         form_autenticacao = self.json_file_to_dict('autenticacao')
         return scrapy.FormRequest.from_response(
             response,
             formdata=form_autenticacao,
-            callback=self.scrape_pages
-        )
-    
-    # Caminha para a pagina de Autorizacao TISS
-    def scrape_pages(self, response):
-        url = '/prestador/RedirectRegulacaoTiss.asp'
-        return response.follow(url=url, callback=self.solicitacaoSADT, errback=self.errback)
+            callback=self.abrir_formulario
+        )   
 
-    # Pagina Inicial da Solicitacao SADT
-    def solicitacaoSADT(self, response):
-        url = '/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx'
-        return response.follow(url=url, callback=self.new_form, errback=self.errback)
-
-    # Pagina com formulario para solicitar a autorizacao
-    def new_form(self, response): 
-        return scrapy.FormRequest.from_response(
-            response,
+    def abrir_formulario(self, response): 
+        return scrapy.FormRequest(
+            url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
             formdata={"Transaction":"FormNew"},
-            callback=self.criar_nro_gsp_solicitacao
+            callback=self.preencher_formulario
         )
 
-    def criar_nro_gsp_solicitacao(self, response):
-        formulario = self.json_file_to_dict('form_new')
-
-        formulario["__VIEWSTATE"] = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
-        formulario["DtaSolicitacao"] = response.selector.xpath('//*[@id="DtaSolicitacao"]/@value').get()
-        formulario["NroContratadoPrestadorExecutante"] = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
-        formulario["NmeContratadoPrestadorExecutante"] = response.selector.xpath('//*[@id="NmeContratadoPrestadorExecutante"]/@value').get()
-        
+    def preencher_formulario(self, response):
+        formulario = self.json_file_to_dict('form_new')      
         formulario["TabContainerControl1$TabGeral$NroCartao"] = "901004143630084" 
         formulario["TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"] = "8158" 
         formulario["TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"] = "52" 
@@ -55,27 +38,13 @@ class GeapSpider(scrapy.Spider):
             response,
             method='POST',
             formdata=formulario,
-            callback=self.submit_form
+            callback=self.concluir_formulario
         )
 
     # Criar o formulario com autorizacao e submiter
-    def submit_form(self, response):
+    def concluir_formulario(self, response):
         formulario = self.json_file_to_dict('concluir')
 
-        formulario["RegistroAns"] = response.selector.xpath('//*[@id="RegistroAns"]/@value').get()
-        formulario["NroGspSolicitacao"] = response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
-        formulario["DtaValidadeCartao"] = response.selector.xpath('//*[@id="DtaValidadeCartao"]/@value').get()
-        formulario["NmeCliente"] = response.selector.xpath('//*[@id="NmeCliente"]/@value').get()
-        formulario["NroCNS"] = response.selector.xpath('//*[@id="NroCNS"]/@value').get()
-        formulario["DtaSolicitacao"] = response.selector.xpath('//*[@id="DtaSolicitacao"]/@value').get()
-        formulario["NroContratadoPrestadorExecutante"] = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
-        formulario["NmeContratadoPrestadorExecutante"] = response.selector.xpath('//*[@id="NmeContratadoPrestadorExecutante"]/@value').get()
-        formulario["NroContratado"] = response.selector.xpath('//*[@id="NroContratado"]/@value').get()
-        formulario["TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"] = response.selector.xpath('//*[@id="TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"]/@value').get()
-        formulario["TabContainerControl1$TabGeral$NroCartao"] = response.selector.xpath('//*[@id="TabContainerControl1$TabGeral$NroCartao"]/@value').get()
-        formulario["TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"] = response.selector.xpath('//*[@id="TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"]/@value').get()
-        formulario["TabContainerControl1$TabGeral$DesIndicacaoClinica"] = response.selector.xpath('//*[@id="TabContainerControl1$TabGeral$DesIndicacaoClinica"]/@value').get()
-        
         return scrapy.FormRequest.from_response(
             response, 
             method='POST',
@@ -86,7 +55,7 @@ class GeapSpider(scrapy.Spider):
     # Carregar formulario e submeter
     def callback(self, response): 
         # import ipdb; ipdb.set_trace()
-        scrapy.utils.response.open_in_browser(response)
+        # scrapy.utils.response.open_in_browser(response)
         
         msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
         if msg_error:
@@ -117,22 +86,6 @@ class GeapSpider(scrapy.Spider):
         nro_gsp_solicitacao = re.findall("(\?|\&)([^=]+)\=([^&]+)", form_action)[1][2]
         yield { "action": "cancelar", "status": "success", "nro_gsp_solicitacao":nro_gsp_solicitacao }
 
-    ########################## TRATAR ERROS NAS REQUESTS ##########################
-    def errback(self, failure):
-        if failure.check(scrapy.spidermiddlewares.httperror.HttpError):
-            response = failure.value.response
-            self.logger.error('HttpError on %s', response.url)
-
-        elif failure.check(DNSLookupError):
-            request = failure.request
-            self.logger.error('DNSLookupError on %s', request.url)
-
-        elif failure.check(TimeoutError, TCPTimedOutError):
-            request = failure.request
-            self.logger.error('TimeoutError on %s', request.url)
-
-        else: 
-            self.logger.error(repr(failure))
 
     ############################# FUNCOES HELPERS #############################
     def json_file_to_dict(self, file_name):
