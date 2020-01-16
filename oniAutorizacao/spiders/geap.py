@@ -22,7 +22,7 @@ class GeapSpider(scrapy.Spider):
             url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
             formdata={"Transaction":"FormNew"},
-            callback=self.verificar_anexo
+            callback=self.preencher_formulario
         )
 
     def preencher_formulario(self, response):
@@ -42,15 +42,17 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao =  358040780 # response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
-        nro_cartao = 901004143630084 # response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
-        nro_contratado = 23022809 # response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
+        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
+        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
+        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
+        url="{0}{1}".format(base, param)
+        url="https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx?NroCartao=901004143630084&NroGspSolicitacao=358133700&NroContratado=23022809"
 
         if id_solicitacao and nro_cartao and nro_contratado:
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
             bind = "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             param = bind.format(cartao=nro_cartao, id=id_solicitacao, contratado=nro_contratado)
-            return response.follow(url="{0}{1}".format(base, param), callback=self.anexar)            
+            return response.follow(url=url, callback=self.anexar)            
     
     def anexar(self, response):
         file_name = "anexo"
