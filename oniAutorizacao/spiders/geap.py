@@ -22,7 +22,7 @@ class GeapSpider(scrapy.Spider):
             url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
             formdata={"Transaction":"FormNew"},
-            callback=self.preencher_formulario
+            callback=self.verificar_anexo
         )
 
     def preencher_formulario(self, response):
@@ -45,20 +45,20 @@ class GeapSpider(scrapy.Spider):
         id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
         nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
         nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
-        url="{0}{1}".format(base, param)
-        url="https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx?NroCartao=901004143630084&NroGspSolicitacao=358133700&NroContratado=23022809"
 
-        if id_solicitacao and nro_cartao and nro_contratado:
+        if True:# id_solicitacao and nro_cartao and nro_contratado:
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
             bind = "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             param = bind.format(cartao=nro_cartao, id=id_solicitacao, contratado=nro_contratado)
+            url="{0}{1}".format(base, param)
+            url="https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx?NroCartao=901004143630084&NroGspSolicitacao=358159700&NroContratado=23022809"
             return response.follow(url=url, callback=self.anexar)            
     
     def anexar(self, response):
         file_name = "anexo"
         anexo = ""
         payload = ""
-        boundary = "MEUDIVISORDEAGUAS"
+        boundary = ("-" * 27) + str( random.randint(10**14, 10**15) )
         viewstate = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
         viewstategenerator = response.selector.xpath('//*[@id="__VIEWSTATEGENERATOR"]/@value').get()
         eventvalidation = response.selector.xpath('//*[@id="__EVENTVALIDATION"]/@value').get()
@@ -91,8 +91,8 @@ class GeapSpider(scrapy.Spider):
         )
 
     def teste(self, response):
-        scrapy.utils.response.open_in_browser(response)
-
+        import ipdb; ipdb.set_trace()
+        
     def concluir_formulario(self, response):
         formulario = self.json_file_to_dict('concluir')
 
