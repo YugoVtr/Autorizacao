@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import scrapy, logging, json, re, pkgutil, random
+import scrapy, logging, json, re, pkgutil, random, time
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -19,11 +19,11 @@ class GeapSpider(scrapy.Spider):
 
     def abrir_formulario(self, response):
         return scrapy.FormRequest(
-            url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
+            url=
+            "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
-            formdata={"Transaction":"FormNew"},
-            callback=self.verificar_anexo
-        )
+            formdata={"Transaction": "FormNew"},
+            callback=self.preencher_formulario)
 
     def preencher_formulario(self, response):
         formulario = self.json_file_to_dict('form_new')
@@ -46,12 +46,11 @@ class GeapSpider(scrapy.Spider):
         nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
         nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
 
-        if True:# id_solicitacao and nro_cartao and nro_contratado:
+        if id_solicitacao and nro_cartao and nro_contratado:
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
             bind = "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             param = bind.format(cartao=nro_cartao, id=id_solicitacao, contratado=nro_contratado)
             url="{0}{1}".format(base, param)
-            url="https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx?NroCartao=901004143630084&NroGspSolicitacao=358159700&NroContratado=23022809"
             return response.follow(url=url, callback=self.anexar)
 
     def anexar(self, response):
@@ -59,7 +58,7 @@ class GeapSpider(scrapy.Spider):
         with open("{}/anexo_body.txt".format(base_path), "r") as file:
             content = file.read()
 
-            boundary = "tafunfando"
+            boundary = hash(time.time())
             viewstate = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
             viewstategenerator = response.selector.xpath('//*[@id="__VIEWSTATEGENERATOR"]/@value').get()
 
@@ -69,7 +68,7 @@ class GeapSpider(scrapy.Spider):
             content = content.format(
                 boundary=boundary,
                 viewstate=viewstate,
-                viewstategenerator=viewstategenerator, 
+                viewstategenerator=viewstategenerator,
                 anexo=anexo
             )
 
@@ -77,15 +76,17 @@ class GeapSpider(scrapy.Spider):
             headers = {
                 "Content-Type": "multipart/form-data; boundary={}".format(boundary)
             }
-            request = scrapy.Request(url=response.url,
-                                     headers=headers,
-                                     cookies=cookies,
-                                     body=content,
-                                     method="POST",
-                                     callback=self.teste)
+            request = scrapy.Request(
+                url=response.url,
+                headers=headers,
+                cookies=cookies,
+                body=content,
+                method="POST",
+                callback=self.concluir_anexo
+            )
             return request
 
-    def teste(self, response):
+    def concluir_anexo(self, response):
         pass
 
     def concluir_formulario(self, response):
