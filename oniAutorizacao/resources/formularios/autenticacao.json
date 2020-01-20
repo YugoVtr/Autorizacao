@@ -1,10 +1,6 @@
 {
-    "seletor": "1",
-    "NroCPFCliente":"",
-    "senha": "cjl38050",
-    "NroContratado": "23022809",
-    "NroConveniada":"",
-    "SglConveniada":"",
-    "NroCPF":"",
-    "NmeUsuario":""
+    "LoginPane$UserName": "23022809",
+    "LoginPane$Password": "cjl38050",
+    "LoginPane$LoginButton.x": "58",
+    "LoginPane$LoginButton.y": "10"
 }

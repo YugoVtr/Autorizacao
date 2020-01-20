@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from scrapy import signals
+from scrapy import signals, utils
 
 class OniautorizacaoSpiderMiddleware(object):
 
@@ -10,6 +10,7 @@ class OniautorizacaoSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
+        utils.response.open_in_browser(response)
         return None
 
     def process_spider_output(self, response, result, spider):
