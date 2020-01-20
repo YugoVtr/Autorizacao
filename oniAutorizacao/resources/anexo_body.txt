@@ -7,10 +7,10 @@ Content-Disposition: form-data; name="__VIEWSTATEGENERATOR"
 
 {viewstategenerator}
 --{boundary}
-Content-Disposition: form-data; name="fupDoc"; filename="teste.txt"
-Content-Type: text/plain
+Content-Disposition: form-data; name="fupDoc"; filename="anexo.pdf"
+Content-Type: application/pdf
 
-asdf1324!@#$
+{anexo}
 --{boundary}
 Content-Disposition: form-data; name="btnAdicionar.x"
 

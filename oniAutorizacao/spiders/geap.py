@@ -56,18 +56,21 @@ class GeapSpider(scrapy.Spider):
 
     def anexar(self, response):
         base_path = "oniAutorizacao/resources"
-        with open("{base}/anexo_body.txt".format(base=base_path), "rb") as file:
-            content = file.read().decode('utf-8')
+        with open("{}/anexo_body.txt".format(base_path), "r") as file:
+            content = file.read()
 
             boundary = "tafunfando"
             viewstate = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
             viewstategenerator = response.selector.xpath('//*[@id="__VIEWSTATEGENERATOR"]/@value').get()
-            eventvalidation = response.selector.xpath('//*[@id="__EVENTVALIDATION"]/@value').get()
+
+            with open("{}/anexos/anexo.pdf".format(base_path), "rb") as file_anexo:
+                anexo = file_anexo.read()
 
             content = content.format(
                 boundary=boundary,
                 viewstate=viewstate,
-                viewstategenerator=viewstategenerator
+                viewstategenerator=viewstategenerator, 
+                anexo=anexo
             )
 
             cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
