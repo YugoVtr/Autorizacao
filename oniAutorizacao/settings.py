@@ -16,7 +16,7 @@ NEWSPIDER_MODULE = 'oniAutorizacao.spiders'
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
 
-LOG_LEVEL = 'DEBUG'
+LOG_LEVEL = 'WARNING'
 
 AUTOTHROTTLE_ENABLED = False 
 AUTOTHROTTLE_START_DELAY = 3.0

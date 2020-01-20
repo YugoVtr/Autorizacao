@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from scrapy import signals, utils
-
+import logging
 class OniautorizacaoSpiderMiddleware(object):
 
     @classmethod
@@ -10,7 +10,8 @@ class OniautorizacaoSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
-        utils.response.open_in_browser(response)
+        if response.url == "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx?NroCartao=901004143630084&NroGspSolicitacao=358159700&NroContratado=23022809":
+            utils.response.open_in_browser(response)
         return None
 
     def process_spider_output(self, response, result, spider):
