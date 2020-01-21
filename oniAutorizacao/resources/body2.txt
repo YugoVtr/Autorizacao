@@ -1,0 +1,30 @@
+--{boundary}
+Content-Disposition: form-data; name="__EVENTTARGET"
+
+{eventtarget}
+--{boundary}
+Content-Disposition: form-data; name="__EVENTARGUMENT"
+
+{eventargument}
+--{boundary}
+Content-Disposition: form-data; name="__VIEWSTATE"
+
+{viewstate}
+--{boundary}
+Content-Disposition: form-data; name="__VIEWSTATEGENERATOR"
+
+{viewstategenerator}
+--{boundary}
+Content-Disposition: form-data; name="fupDoc"; filename=""
+Content-Type: application/octet-stream
+
+
+--{boundary}
+Content-Disposition: form-data; name="btnExecutar.x"
+
+39
+--{boundary}
+Content-Disposition: form-data; name="btnExecutar.y"
+
+8
+--{boundary}--
