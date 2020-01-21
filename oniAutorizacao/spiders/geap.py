@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import scrapy, logging, json, re, pkgutil, random, time
+import scrapy, logging, json, re, pkgutil, time, requests, codecs
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -30,7 +30,7 @@ class GeapSpider(scrapy.Spider):
         formulario["TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"] = "8158"
         formulario["TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"] = "52"
         formulario["TabContainerControl1$TabGeral$DesIndicacaoClinica"] = "DORES ABDOMINAIS"
-        formulario["TabContainerControl1$TabProcedimento$NroServicoGridRegulacao"] = "40808041"
+        formulario["TabContainerControl1$TabProcedimento$NroServicoGridRegulacao"] = "40808050"
         formulario["TabContainerControl1$TabProcedimento$QtdSolicitadaGridRegulacao"] = "1"
 
         return scrapy.FormRequest.from_response(
@@ -41,11 +41,12 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() or 358461440
+        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() or 358499410
         nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get() or 901004143630084
         nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() or 23022809
 
         if id_solicitacao and nro_cartao and nro_contratado:
+            logging.warning("id da solicitacao => {}".format(id_solicitacao))
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
             bind = "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             param = bind.format(cartao=nro_cartao, id=id_solicitacao, contratado=nro_contratado)
@@ -56,14 +57,13 @@ class GeapSpider(scrapy.Spider):
         base_path = "oniAutorizacao/resources"
         with open("{}/body.txt".format(base_path), "r") as file:
             content = file.read()
-
+   
             boundary = hash(time.time())
             inputs = self.get_all_inputs_from_response(response)
-            import ipdb; ipdb.set_trace()
             viewstate = inputs['__VIEWSTATE']
             viewstategenerator = inputs['__VIEWSTATEGENERATOR']
 
-            with open("{}/anexos/anexo.pdf".format(base_path), "rb") as file_anexo:
+            with codecs.open("{}/anexos/simples.pdf".format(base_path), encoding="ISO8859-1") as file_anexo:
                 anexo = file_anexo.read()
 
             content = content.format(
@@ -71,6 +71,42 @@ class GeapSpider(scrapy.Spider):
                 viewstate=viewstate,
                 viewstategenerator=viewstategenerator,
                 anexo=anexo
+            )
+
+            cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
+            headers = {
+                "Connection": "Keep-Alive",
+                "Content-Type": "multipart/form-data; boundary={}".format(boundary)
+            }
+
+            request = scrapy.Request(
+                url=response.url,
+                headers=headers,
+                cookies=cookies,
+                body=content,
+                method="POST",
+                callback=self.concluir_anexo
+            )
+            return request
+
+    def concluir_anexo(self, response):
+        base_path = "oniAutorizacao/resources"
+        with open("{}/body2.txt".format(base_path), "r") as file:
+            content = file.read()
+
+            boundary = hash(time.time())
+            inputs = self.get_all_inputs_from_response(response)
+            eventtarget = ""
+            eventargument = ""
+            viewstate = inputs['__VIEWSTATE']
+            viewstategenerator = inputs['__VIEWSTATEGENERATOR']
+
+            content = content.format(
+                boundary=boundary,
+                viewstate=viewstate,
+                viewstategenerator=viewstategenerator,
+                eventtarget=eventtarget,
+                eventargument=eventargument
             )
 
             cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
@@ -83,30 +119,43 @@ class GeapSpider(scrapy.Spider):
                 cookies=cookies,
                 body=content,
                 method="POST",
-                callback=self.concluir_anexo
+                callback=self.redirecionar_para_edicao
             )
             return request
 
-    def concluir_anexo(self, response):
-        pass
+    def redirecionar_para_edicao(self, response):
+        menssagem = response.selector.xpath('//*[@id="lblMessage"]/text()').get()
+        parametros = re.findall("[0-9]+", menssagem)
+        base = "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx"
+        param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(parametros[0])
+        return response.follow(
+            url= base + param, 
+            callback=self.concluir_formulario
+        )
 
     def concluir_formulario(self, response):
+        return {}
         formulario = self.json_file_to_dict('concluir')
 
         return scrapy.FormRequest.from_response(
             response,
             method='POST',
             formdata=formulario,
-            callback=self.callback
+            callback=self.processar_resultado
         )
 
-    def callback(self, response):
-        # import ipdb; ipdb.set_trace()
-        # scrapy.utils.response.open_in_browser(response)
-
+    def processar_resultado(self, response):
         msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
         if msg_error:
             yield { "status": "error", "message": msg_error }
+        else: 
+            regex = '"\/regulacaoTiss\/report\/resumoautorizacao\.aspx\?.*"'
+            match = re.findall(regex, response.body.decode('UTF-8'))
+            url = match[0].replace('"', '')
+            return response.follow(url=url, callback=self.obter_senha)
+
+    def obter_senha(self, response):
+        import ipdb; ipdb.set_trace()
 
     ############################# FUNCOES HELPERS #############################
     def json_file_to_dict(self, file_name):

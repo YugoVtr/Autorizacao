@@ -5,3 +5,4 @@
 build
 project.egg-info
 oniAutorizacao.egg-info
+oniAutorizacao/resources/logs/itens.json
