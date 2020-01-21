@@ -19,11 +19,10 @@ class GeapSpider(scrapy.Spider):
 
     def abrir_formulario(self, response):
         return scrapy.FormRequest(
-            url=
-            "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
+            url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
             formdata={"Transaction": "FormNew"},
-            callback=self.preencher_formulario)
+            callback=self.verificar_anexo)
 
     def preencher_formulario(self, response):
         formulario = self.json_file_to_dict('form_new')
@@ -42,9 +41,9 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
-        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
-        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
+        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() or 358461440
+        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get() or 901004143630084
+        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() or 23022809
 
         if id_solicitacao and nro_cartao and nro_contratado:
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
@@ -55,12 +54,14 @@ class GeapSpider(scrapy.Spider):
 
     def anexar(self, response):
         base_path = "oniAutorizacao/resources"
-        with open("{}/anexo_body.txt".format(base_path), "r") as file:
+        with open("{}/body.txt".format(base_path), "r") as file:
             content = file.read()
 
             boundary = hash(time.time())
-            viewstate = response.selector.xpath('//*[@id="__VIEWSTATE"]/@value').get()
-            viewstategenerator = response.selector.xpath('//*[@id="__VIEWSTATEGENERATOR"]/@value').get()
+            inputs = self.get_all_inputs_from_response(response)
+            import ipdb; ipdb.set_trace()
+            viewstate = inputs['__VIEWSTATE']
+            viewstategenerator = inputs['__VIEWSTATEGENERATOR']
 
             with open("{}/anexos/anexo.pdf".format(base_path), "rb") as file_anexo:
                 anexo = file_anexo.read()
@@ -119,3 +120,10 @@ class GeapSpider(scrapy.Spider):
             if len(item) == 2:
                 header[item[0]] = item[1]
         return header
+
+    def get_all_inputs_from_response(self, response):
+        inputs = response.selector.xpath("//input")
+        result = {}
+        for i in inputs:
+            result[i.xpath("@name").get()] = i.xpath("@value").get()
+        return result
