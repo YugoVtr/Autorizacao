@@ -14,8 +14,6 @@ class GeapSpider(scrapy.Spider):
         if type( solicitacao == str): 
             solicitacao = self.str_to_json( solicitacao )
 
-        import ipdb; ipdb.set_trace()
-        import os; os.system('exit')
         # valida parametros
         assert "numero_cartao" in solicitacao
         assert "numero_conselho" in solicitacao
