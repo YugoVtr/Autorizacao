@@ -7,16 +7,16 @@ Content-Disposition: form-data; name="__VIEWSTATEGENERATOR"
 
 {viewstategenerator}
 --{boundary}
-Content-Disposition: form-data; name="fupDoc"; filename="anexo.pdf"
-Content-Type: application/pdf
+Content-Disposition: form-data; name="fupDoc"; filename=""
+Content-Type: application/octet-stream
 
-{anexo}
---{boundary}
-Content-Disposition: form-data; name="btnAdicionar.x"
 
-12
 --{boundary}
-Content-Disposition: form-data; name="btnAdicionar.y"
+Content-Disposition: form-data; name="btnExecutar.x"
+
+39
+--{boundary}
+Content-Disposition: form-data; name="btnExecutar.y"
 
 8
 --{boundary}--

@@ -8,6 +8,20 @@ class GeapSpider(scrapy.Spider):
     allowed_domains = ['geap.com.br']
     start_urls = ['https://www.geap.com.br/Login.aspx?ReturnUrl=regulacaoTiss/default.aspx&Procedure=ww_usr_CheckWWWPrestador']
 
+    def __init__(self, solicitacao={}, *args, **kwargs):
+        super(GeapSpider, self).__init__(*args, **kwargs)
+
+        # valida parametros
+        assert "numero_cartao" in solicitacao
+        assert "numero_conselho" in solicitacao
+        assert "uf_conselho" in solicitacao
+        assert "indicacao_clinica" in solicitacao
+        assert "procedimento" in solicitacao
+        assert "quantidade_solicitada" in solicitacao
+        assert "caminho_anexo" in solicitacao
+
+        self.solicitacao = solicitacao
+
     # Faz o login
     def parse(self, response):
         form_autenticacao = self.json_file_to_dict('autenticacao')
@@ -26,12 +40,12 @@ class GeapSpider(scrapy.Spider):
 
     def preencher_formulario(self, response):
         formulario = self.json_file_to_dict('form_new')
-        formulario["TabContainerControl1$TabGeral$NroCartao"] = "901004143630084"
-        formulario["TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"] = "8158"
-        formulario["TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"] = "52"
-        formulario["TabContainerControl1$TabGeral$DesIndicacaoClinica"] = "DORES ABDOMINAIS"
-        formulario["TabContainerControl1$TabProcedimento$NroServicoGridRegulacao"] = "40808050"
-        formulario["TabContainerControl1$TabProcedimento$QtdSolicitadaGridRegulacao"] = "1"
+        formulario["TabContainerControl1$TabGeral$NroCartao"] = self.solicitacao["numero_cartao"]
+        formulario["TabContainerControl1$TabGeral$NroConselhoProfissionalSolicitante"] = self.solicitacao["numero_conselho"]
+        formulario["TabContainerControl1$TabGeral$NroUFConselhoProfissionalSolicitante"] = self.solicitacao["uf_conselho"]
+        formulario["TabContainerControl1$TabGeral$DesIndicacaoClinica"] = self.solicitacao["indicacao_clinica"]
+        formulario["TabContainerControl1$TabProcedimento$NroServicoGridRegulacao"] = self.solicitacao["procedimento"]
+        formulario["TabContainerControl1$TabProcedimento$QtdSolicitadaGridRegulacao"] = self.solicitacao["quantidade_solicitada"]
 
         return scrapy.FormRequest.from_response(
             response,
@@ -46,7 +60,7 @@ class GeapSpider(scrapy.Spider):
         nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() 
 
         if id_solicitacao and nro_cartao and nro_contratado:
-            logging.warning("id da solicitacao => {}".format(id_solicitacao))
+            logging.info("id da solicitacao => {}".format(id_solicitacao))
             base = "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
             bind = "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             param = bind.format(cartao=nro_cartao, id=id_solicitacao, contratado=nro_contratado)
@@ -54,8 +68,8 @@ class GeapSpider(scrapy.Spider):
             return response.follow(url=url, callback=self.anexar)
 
     def anexar(self, response):
-        base_path = "oniAutorizacao/resources"
-
+        path = self.solicitacao['caminho_anexo']
+        file_name = path.split("/")[-1]
         inputs = self.get_all_inputs_from_response(response)
         viewstate = inputs['__VIEWSTATE']
         viewstategenerator = inputs['__VIEWSTATEGENERATOR']
@@ -63,7 +77,7 @@ class GeapSpider(scrapy.Spider):
         files = {
             "__VIEWSTATE":(None, viewstate),
             "__VIEWSTATEGENERATOR":(None, viewstategenerator),
-            "fupDoc": ('anexo.pdf', open("{}/anexos/anexo.pdf".format(base_path), "rb"), "application/pdf"),
+            "fupDoc": (file_name, open(path, "rb"), "application/pdf"),
             "btnAdicionar.x": (None, "12"),
             "btnAdicionar.y": (None, "8")    
         }
@@ -84,71 +98,84 @@ class GeapSpider(scrapy.Spider):
 
     def concluir_anexo(self, response):
         base_path = "oniAutorizacao/resources"
-        with open("{}/body2.txt".format(base_path), "r") as file:
+        with open("{}/body.txt".format(base_path), "r") as file:
             content = file.read()
 
             boundary = hash(time.time())
             inputs = self.get_all_inputs_from_response(response)
-            eventtarget = ""
-            eventargument = ""
             viewstate = inputs['__VIEWSTATE']
             viewstategenerator = inputs['__VIEWSTATEGENERATOR']
 
             content = content.format(
-                boundary=boundary,
+                boundary="X-ONI-AUTORIZACAO",
                 viewstate=viewstate,
-                viewstategenerator=viewstategenerator,
-                eventtarget=eventtarget,
-                eventargument=eventargument
+                viewstategenerator=viewstategenerator
             )
 
             cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
-            headers = {
-                "Content-Type": "multipart/form-data; boundary={}".format(boundary)
-            }
-            request = scrapy.Request(
+            headers = { "Content-Type": "multipart/form-data; boundary=X-ONI-AUTORIZACAO"}
+            id_requisicao = re.findall("[0-9]+", response.selector.xpath("//form/@action").get())[1]
+            return scrapy.Request(
                 url=response.url,
                 headers=headers,
                 cookies=cookies,
                 body=content,
                 method="POST",
+                cb_kwargs={"id_requisicao": id_requisicao},
                 callback=self.redirecionar_para_edicao
             )
             return request
 
-    def redirecionar_para_edicao(self, response):
-        menssagem = response.selector.xpath('//*[@id="lblMessage"]/text()').get()
-        parametros = re.findall("[0-9]+", menssagem)
-        base = "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx"
-        param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(parametros[0])
-        return response.follow(
-            url= base + param, 
-            callback=self.concluir_formulario
-        )
+    def redirecionar_para_edicao(self, response, id_requisicao):
+        if id_requisicao:
+            base = "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx"
+            param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(id_requisicao)
+            return response.follow(
+                url= base + param, 
+                callback=self.concluir_formulario
+            )
 
     def concluir_formulario(self, response):
-        return {}
         formulario = self.json_file_to_dict('concluir')
+        id_requisicao = response.selector.xpath("//*[@id='NroGspSolicitacao']/@value").get()
 
         return scrapy.FormRequest.from_response(
             response,
             method='POST',
             formdata=formulario,
-            callback=self.processar_resultado
+            cb_kwargs={"id_requisicao": id_requisicao},
+            callback=self.verificar_resultado
         )
 
-    def processar_resultado(self, response):
+    def verificar_resultado(self, response, id_requisicao):
         msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
         if msg_error:
             yield { "status": "error", "message": msg_error }
-        else: 
-            regex = '"\/regulacaoTiss\/report\/resumoautorizacao\.aspx\?.*"'
-            match = re.findall(regex, response.body.decode('UTF-8'))
-            url = match[0].replace('"', '')
-            return response.follow(url=url, callback=self.obter_senha)
-
-    def obter_senha(self, response):
-        import ipdb; ipdb.set_trace()
+        elif id_requisicao:
+            yield scrapy.FormRequest.from_response(
+                response, 
+                method='POST',
+                formdata={
+                    "Transaction": "FormEdit",
+                    "PostBack": "false",
+                    "NroGspSolicitacao": id_requisicao
+                }, 
+                callback=self.finalizar
+            )
+    
+    def finalizar(self, response):
+        id_requisicao = response.selector.xpath("//*[@id='NroGspSolicitacao']/@value").get()
+        status = response.selector.xpath('//*[@id="StaSolicitacao_fixed"]/text()').get()
+        
+        match_senha = re.match('[0-9]+', response.selector.xpath("//*[@id='NroSenhaAutorizacao_fixed']/text()").get())
+        senha = match_senha.group(0) if match_senha else ""
+     
+        # import ipdb; ipdb.set_trace()
+        yield { 
+            "numero_guia": id_requisicao, 
+            "senha": senha, 
+            "status": status
+        }
 
     ############################# FUNCOES HELPERS #############################
     def json_file_to_dict(self, file_name):
