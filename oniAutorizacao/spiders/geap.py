@@ -22,7 +22,7 @@ class GeapSpider(scrapy.Spider):
             url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
             formdata={"Transaction": "FormNew"},
-            callback=self.verificar_anexo)
+            callback=self.preencher_formulario)
 
     def preencher_formulario(self, response):
         formulario = self.json_file_to_dict('form_new')
@@ -41,9 +41,9 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() or 358499410
-        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get() or 901004143630084
-        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() or 23022809
+        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() 
+        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get() 
+        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() 
 
         if id_solicitacao and nro_cartao and nro_contratado:
             logging.warning("id da solicitacao => {}".format(id_solicitacao))
@@ -55,39 +55,32 @@ class GeapSpider(scrapy.Spider):
 
     def anexar(self, response):
         base_path = "oniAutorizacao/resources"
-        with open("{}/body.txt".format(base_path), "r") as file:
-            content = file.read()
-   
-            boundary = hash(time.time())
-            inputs = self.get_all_inputs_from_response(response)
-            viewstate = inputs['__VIEWSTATE']
-            viewstategenerator = inputs['__VIEWSTATEGENERATOR']
 
-            with codecs.open("{}/anexos/simples.pdf".format(base_path), encoding="ISO8859-1") as file_anexo:
-                anexo = file_anexo.read()
+        inputs = self.get_all_inputs_from_response(response)
+        viewstate = inputs['__VIEWSTATE']
+        viewstategenerator = inputs['__VIEWSTATEGENERATOR']
 
-            content = content.format(
-                boundary=boundary,
-                viewstate=viewstate,
-                viewstategenerator=viewstategenerator,
-                anexo=anexo
-            )
+        files = {
+            "__VIEWSTATE":(None, viewstate),
+            "__VIEWSTATEGENERATOR":(None, viewstategenerator),
+            "fupDoc": ('anexo.pdf', open("{}/anexos/anexo.pdf".format(base_path), "rb"), "application/pdf"),
+            "btnAdicionar.x": (None, "12"),
+            "btnAdicionar.y": (None, "8")    
+        }
 
-            cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
-            headers = {
-                "Connection": "Keep-Alive",
-                "Content-Type": "multipart/form-data; boundary={}".format(boundary)
-            }
+        cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
+        prepare = requests.Request('POST', response.url, files=files, cookies=cookies).prepare()
+        headers = prepare.headers
+        body = prepare.body
 
-            request = scrapy.Request(
-                url=response.url,
-                headers=headers,
-                cookies=cookies,
-                body=content,
-                method="POST",
-                callback=self.concluir_anexo
-            )
-            return request
+        return scrapy.Request(
+            url=response.url,
+            headers=headers,
+            cookies=cookies,
+            body=body,
+            method="POST",
+            callback=self.concluir_anexo
+        )
 
     def concluir_anexo(self, response):
         base_path = "oniAutorizacao/resources"
