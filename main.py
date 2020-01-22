@@ -9,11 +9,11 @@ if __name__ == "__main__":
     })
 
     solicitacao = {
-        "numero_cartao" : "901004143630084",   
-        "numero_conselho" : "8158",        
-        "uf_conselho" : "52",        
-        "indicacao_clinica" : "FORTES DORES ABDOMINAIS",        
-        "procedimento" : "40808041",        
+        "numero_cartao" : "901004143630084",
+        "numero_conselho" : "8158",
+        "uf_conselho" : "52",
+        "indicacao_clinica" : "FORTES DORES ABDOMINAIS",
+        "procedimento" : "40808041",
         "quantidade_solicitada" : "2",
         "caminho_anexo": "oniAutorizacao/resources/anexos/anexo.pdf"
     }

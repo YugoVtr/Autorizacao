@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import scrapy, logging, json, re, pkgutil, time, requests, codecs
+import scrapy, logging, json, re, pkgutil, time, requests
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 
@@ -11,6 +11,11 @@ class GeapSpider(scrapy.Spider):
     def __init__(self, solicitacao={}, *args, **kwargs):
         super(GeapSpider, self).__init__(*args, **kwargs)
 
+        if type( solicitacao == str): 
+            solicitacao = self.str_to_json( solicitacao )
+
+        import ipdb; ipdb.set_trace()
+        import os; os.system('exit')
         # valida parametros
         assert "numero_cartao" in solicitacao
         assert "numero_conselho" in solicitacao
@@ -101,7 +106,6 @@ class GeapSpider(scrapy.Spider):
         with open("{}/body.txt".format(base_path), "r") as file:
             content = file.read()
 
-            boundary = hash(time.time())
             inputs = self.get_all_inputs_from_response(response)
             viewstate = inputs['__VIEWSTATE']
             viewstategenerator = inputs['__VIEWSTATEGENERATOR']
@@ -196,3 +200,11 @@ class GeapSpider(scrapy.Spider):
         for i in inputs:
             result[i.xpath("@name").get()] = i.xpath("@value").get()
         return result
+
+    def str_to_json(self, json_string): 
+        json_result = {}
+        try:
+            json_result = json.loads( json_string )
+        except ValueError as error:
+            return json_result
+        return json_result
