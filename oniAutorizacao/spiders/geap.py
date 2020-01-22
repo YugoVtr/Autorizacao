@@ -11,8 +11,7 @@ class GeapSpider(scrapy.Spider):
     def __init__(self, solicitacao={}, *args, **kwargs):
         super(GeapSpider, self).__init__(*args, **kwargs)
 
-        if type( solicitacao == str): 
-            solicitacao = self.str_to_json( solicitacao )
+        solicitacao = self.str_to_json( solicitacao )
 
         # valida parametros
         assert "numero_cartao" in solicitacao
@@ -58,9 +57,9 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get() 
-        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get() 
-        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get() 
+        id_solicitacao =  response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
+        nro_cartao = response.selector.xpath('//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value').get()
+        nro_contratado = response.selector.xpath('//*[@id="NroContratadoPrestadorExecutante"]/@value').get()
 
         if id_solicitacao and nro_cartao and nro_contratado:
             logging.info("id da solicitacao => {}".format(id_solicitacao))
@@ -82,7 +81,7 @@ class GeapSpider(scrapy.Spider):
             "__VIEWSTATEGENERATOR":(None, viewstategenerator),
             "fupDoc": (file_name, open(path, "rb"), "application/pdf"),
             "btnAdicionar.x": (None, "12"),
-            "btnAdicionar.y": (None, "8")    
+            "btnAdicionar.y": (None, "8")
         }
 
         cookies = self.raw_header_to_dict(response.request.headers['Cookie'])
@@ -133,7 +132,7 @@ class GeapSpider(scrapy.Spider):
             base = "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx"
             param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(id_requisicao)
             return response.follow(
-                url= base + param, 
+                url= base + param,
                 callback=self.concluir_formulario
             )
 
@@ -155,27 +154,27 @@ class GeapSpider(scrapy.Spider):
             yield { "status": "error", "message": msg_error }
         elif id_requisicao:
             yield scrapy.FormRequest.from_response(
-                response, 
+                response,
                 method='POST',
                 formdata={
                     "Transaction": "FormEdit",
                     "PostBack": "false",
                     "NroGspSolicitacao": id_requisicao
-                }, 
+                },
                 callback=self.finalizar
             )
-    
+
     def finalizar(self, response):
         id_requisicao = response.selector.xpath("//*[@id='NroGspSolicitacao']/@value").get()
         status = response.selector.xpath('//*[@id="StaSolicitacao_fixed"]/text()').get()
-        
+
         match_senha = re.match('[0-9]+', response.selector.xpath("//*[@id='NroSenhaAutorizacao_fixed']/text()").get())
         senha = match_senha.group(0) if match_senha else ""
-     
+
         # import ipdb; ipdb.set_trace()
-        yield { 
-            "numero_guia": id_requisicao, 
-            "senha": senha, 
+        yield {
+            "numero_guia": id_requisicao,
+            "senha": senha,
             "status": status
         }
 
@@ -199,10 +198,13 @@ class GeapSpider(scrapy.Spider):
             result[i.xpath("@name").get()] = i.xpath("@value").get()
         return result
 
-    def str_to_json(self, json_string): 
-        json_result = {}
-        try:
-            json_result = json.loads( json_string )
-        except ValueError as error:
-            return json_result
-        return json_result
+    def str_to_json(self, json_string):
+        if isinstance(json_string, str):
+            try:
+                return json.loads( json_string )
+            except:
+                return {}
+        elif isinstance(json_string, dict):
+            return json_string
+        else:
+            return {}
