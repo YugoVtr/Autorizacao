@@ -14,13 +14,13 @@ class GeapSpider(scrapy.Spider):
         solicitacao = self.str_to_json( solicitacao )
 
         # valida parametros
-        assert "numero_cartao" in solicitacao
-        assert "numero_conselho" in solicitacao
-        assert "uf_conselho" in solicitacao
-        assert "indicacao_clinica" in solicitacao
-        assert "procedimento" in solicitacao
-        assert "quantidade_solicitada" in solicitacao
-        assert "caminho_anexo" in solicitacao
+        # assert "numero_cartao" in solicitacao
+        # assert "numero_conselho" in solicitacao
+        # assert "uf_conselho" in solicitacao
+        # assert "indicacao_clinica" in solicitacao
+        # assert "procedimento" in solicitacao
+        # assert "quantidade_solicitada" in solicitacao
+        # assert "caminho_anexo" in solicitacao
 
         self.solicitacao = solicitacao
 
@@ -34,6 +34,7 @@ class GeapSpider(scrapy.Spider):
         )
 
     def abrir_formulario(self, response):
+        return {}
         return scrapy.FormRequest(
             url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
             method='POST',
