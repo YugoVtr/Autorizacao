@@ -1,4 +1,4 @@
-import scrapy, json, subprocess
+import scrapy, json, subprocess, time, os, logging
 from flask import Flask, request
 from flask_restplus import Api, Resource, fields
 
@@ -29,13 +29,21 @@ model = app.model(
     },
 )
 
-
 def geap_spider(solicitacao):
-    output_path = "oniAutorizacao/resources/logs/itens.json"
-    subprocess.check_output(["scrapy", "crawl", "geap", "-o", output_path])
-    with open(output_path) as response:
-        return json.loads(response.read())
+    response = {}
+    post_data = "solicitacao=%s" % json.dumps(solicitacao)
+    temp_file_name = hash(time.time())
 
+    try:
+        output_path = "oniAutorizacao/resources/logs/%d.json" % temp_file_name
+        subprocess.check_output(["scrapy", "crawl", "geap", "-o", output_path, "-a", post_data])
+        with open(output_path, "r") as file:
+            response = json.loads( file.read() )
+    except:
+        pass
+    finally:
+        os.remove(output_path)
+    return response
 
 @geap_name_space.route("")
 class GeapClass(Resource):

@@ -2,8 +2,4 @@
 **/*.log
 **/*.html
 **/*.pyc
-build
-project.egg-info
-oniAutorizacao.egg-info
-oniAutorizacao/resources/logs/itens.json
-.vscode/settings.json
+oniAutorizacao/resources/logs/*
