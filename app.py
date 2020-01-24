@@ -25,7 +25,7 @@ model = app.model(
         "indicacao_clinica": fields.String(required=True, description=""),
         "procedimento": fields.String(required=True, description=""),
         "quantidade_solicitada": fields.Integer(required=True, description=""),
-        "caminho_anexo": fields.String(required=True, description=""),
+        "anexo_url": fields.String(required=True, description=""),
     },
 )
 

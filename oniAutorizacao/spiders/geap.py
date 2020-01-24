@@ -23,7 +23,7 @@ class GeapSpider(scrapy.Spider):
         assert "indicacao_clinica" in solicitacao
         assert "procedimento" in solicitacao
         assert "quantidade_solicitada" in solicitacao
-        assert "caminho_anexo" in solicitacao
+        assert "anexo_url" in solicitacao
 
         self.solicitacao = solicitacao
 
