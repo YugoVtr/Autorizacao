@@ -125,7 +125,6 @@ class GeapSpider(scrapy.Spider):
                 cb_kwargs={"id_requisicao": id_requisicao},
                 callback=self.redirecionar_para_edicao
             )
-            return request
 
     def redirecionar_para_edicao(self, response, id_requisicao):
         if id_requisicao:
