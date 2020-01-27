@@ -1,20 +1,19 @@
 # -*- coding: utf-8 -*-
-import scrapy, logging, json, re, pkgutil, time, requests
+import scrapy, logging, json, re, requests, os
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
-
+from oniAutorizacao.util.estados import Estados
+from oniAutorizacao.util import helpers
 
 class GeapSpider(scrapy.Spider):
     name = "geap"
     allowed_domains = ["geap.com.br"]
-    start_urls = [
-        "https://www.geap.com.br/Login.aspx?ReturnUrl=regulacaoTiss/default.aspx&Procedure=ww_usr_CheckWWWPrestador"
-    ]
+    base_url = "https://www.geap.com.br"
 
     def __init__(self, solicitacao={}, *args, **kwargs):
         super(GeapSpider, self).__init__(*args, **kwargs)
 
-        solicitacao = self.str_to_json(solicitacao)
+        solicitacao = helpers.str_to_json(solicitacao)
 
         # valida parametros
         assert "numero_cartao" in solicitacao
@@ -26,24 +25,31 @@ class GeapSpider(scrapy.Spider):
         assert "anexo_url" in solicitacao
 
         self.solicitacao = solicitacao
+        self.solicitacao["uf_conselho"] = str(Estados[solicitacao["uf_conselho"]].value)
 
-    # Faz o login
+    def start_requests(self):
+        yield scrapy.Request(
+            "%s/Login.aspx?ReturnUrl=regulacaoTiss/default.aspx&Procedure=ww_usr_CheckWWWPrestador"
+            % self.base_url,
+            callback=self.parse,
+        )
+
     def parse(self, response):
-        form_autenticacao = self.json_file_to_dict("autenticacao")
+        form_autenticacao = helpers.json_file_to_dict("autenticacao")
         return scrapy.FormRequest.from_response(
             response, formdata=form_autenticacao, callback=self.abrir_formulario
         )
 
     def abrir_formulario(self, response):
         return scrapy.FormRequest(
-            url="https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx",
+            url="%s/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx" % self.base_url,
             method="POST",
             formdata={"Transaction": "FormNew"},
             callback=self.preencher_formulario,
         )
 
     def preencher_formulario(self, response):
-        formulario = self.json_file_to_dict("form_new")
+        formulario = helpers.json_file_to_dict("form_new")
         formulario["TabContainerControl1$TabGeral$NroCartao"] = self.solicitacao[
             "numero_cartao"
         ]
@@ -68,21 +74,23 @@ class GeapSpider(scrapy.Spider):
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao = response.selector.xpath(
-            '//*[@id="NroGspSolicitacao"]/@value'
-        ).get()
-        nro_cartao = response.selector.xpath(
-            '//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value'
-        ).get()
-        nro_contratado = response.selector.xpath(
-            '//*[@id="NroContratadoPrestadorExecutante"]/@value'
-        ).get()
+        id_solicitacao = (
+            response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
+        )
+        nro_cartao = (
+            response.selector.xpath(
+                '//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value'
+            ).get()
+        )
+        nro_contratado = (
+            response.selector.xpath(
+                '//*[@id="NroContratadoPrestadorExecutante"]/@value'
+            ).get()
+        )
 
         if id_solicitacao and nro_cartao and nro_contratado:
             logging.info("id da solicitacao => {}".format(id_solicitacao))
-            base = (
-                "https://www.geap.com.br/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx"
-            )
+            base = "%s/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx" % self.base_url
             bind = (
                 "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
             )
@@ -93,9 +101,9 @@ class GeapSpider(scrapy.Spider):
             return response.follow(url=url, callback=self.anexar)
 
     def anexar(self, response):
-        path = self.solicitacao["caminho_anexo"]
+        path = helpers.save_pdf_from_url(self.solicitacao["anexo_url"])
         file_name = path.split("/")[-1]
-        inputs = self.get_all_inputs_from_response(response)
+        inputs = helpers.get_all_inputs_from_response(response)
         viewstate = inputs["__VIEWSTATE"]
         viewstategenerator = inputs["__VIEWSTATEGENERATOR"]
 
@@ -107,13 +115,14 @@ class GeapSpider(scrapy.Spider):
             "btnAdicionar.y": (None, "8"),
         }
 
-        cookies = self.raw_header_to_dict(response.request.headers["Cookie"])
+        cookies = helpers.raw_header_to_dict(response.request.headers["Cookie"])
         prepare = requests.Request(
             "POST", response.url, files=files, cookies=cookies
         ).prepare()
         headers = prepare.headers
         body = prepare.body
 
+        os.remove(path)
         return scrapy.Request(
             url=response.url,
             headers=headers,
@@ -128,7 +137,7 @@ class GeapSpider(scrapy.Spider):
         with open("{}/body.txt".format(base_path), "r") as file:
             content = file.read()
 
-            inputs = self.get_all_inputs_from_response(response)
+            inputs = helpers.get_all_inputs_from_response(response)
             viewstate = inputs["__VIEWSTATE"]
             viewstategenerator = inputs["__VIEWSTATEGENERATOR"]
 
@@ -138,7 +147,7 @@ class GeapSpider(scrapy.Spider):
                 viewstategenerator=viewstategenerator,
             )
 
-            cookies = self.raw_header_to_dict(response.request.headers["Cookie"])
+            cookies = helpers.raw_header_to_dict(response.request.headers["Cookie"])
             headers = {
                 "Content-Type": "multipart/form-data; boundary=X-ONI-AUTORIZACAO"
             }
@@ -157,14 +166,14 @@ class GeapSpider(scrapy.Spider):
 
     def redirecionar_para_edicao(self, response, id_requisicao):
         if id_requisicao:
-            base = "https://www.geap.com.br/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx"
+            base = "%s/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx" % self.base_url
             param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(
                 id_requisicao
             )
             return response.follow(url=base + param, callback=self.concluir_formulario)
 
     def concluir_formulario(self, response):
-        formulario = self.json_file_to_dict("concluir")
+        formulario = helpers.json_file_to_dict("concluir")
         id_requisicao = response.selector.xpath(
             "//*[@id='NroGspSolicitacao']/@value"
         ).get()
@@ -207,36 +216,3 @@ class GeapSpider(scrapy.Spider):
         )
         senha = match_senha.group(0) if match_senha else ""
         yield {"numero_guia": id_requisicao, "senha": senha, "status": status}
-
-    ############################# FUNCOES HELPERS #############################
-    def json_file_to_dict(self, file_name):
-        content = pkgutil.get_data(
-            "oniAutorizacao", "resources/formularios/{}.json".format(file_name)
-        )
-        return dict(json.loads(content))
-
-    def raw_header_to_dict(self, raw):
-        header = {}
-        for i in raw.decode("utf-8").split(";"):
-            item = [j.strip() for j in i.split("=")]
-            if len(item) == 2:
-                header[item[0]] = item[1]
-        return header
-
-    def get_all_inputs_from_response(self, response):
-        inputs = response.selector.xpath("//input")
-        result = {}
-        for i in inputs:
-            result[i.xpath("@name").get()] = i.xpath("@value").get()
-        return result
-
-    def str_to_json(self, json_string):
-        if isinstance(json_string, str):
-            try:
-                return json.loads(json_string)
-            except:
-                return {}
-        elif isinstance(json_string, dict):
-            return json_string
-        else:
-            return {}
