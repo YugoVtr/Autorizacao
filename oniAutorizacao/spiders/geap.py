@@ -98,6 +98,9 @@ class GeapSpider(scrapy.Spider):
             )
             url = "{0}{1}".format(base, param)
             return response.follow(url=url, callback=self.anexar)
+        else:
+            self.item["erro"] = "Solicitação não poder ser criada - Verifique os parametros"
+            yield self.item
 
     def anexar(self, response):
         self.anexo_path = helpers.save_pdf_from_url(self.solicitacao["anexo_url"])
