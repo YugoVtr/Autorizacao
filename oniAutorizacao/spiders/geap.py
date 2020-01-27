@@ -2,39 +2,42 @@
 import scrapy, logging, json, re, requests, os
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
+
+from oniAutorizacao.items import OniautorizacaoItem
 from oniAutorizacao.util.estados import Estados
 from oniAutorizacao.util import helpers
+from oniAutorizacao.util.handle import GeapHandle
+
 
 class GeapSpider(scrapy.Spider):
     name = "geap"
     allowed_domains = ["geap.com.br"]
-    base_url = "https://www.geap.com.br"
+    start_urls = [
+        "https://www.geap.com.br/Login.aspx?Procedure=ww_usr_CheckWWWPrestador"
+    ]    
 
     def __init__(self, solicitacao={}, *args, **kwargs):
         super(GeapSpider, self).__init__(*args, **kwargs)
-
-        solicitacao = helpers.str_to_json(solicitacao)
-
-        # valida parametros
-        assert "numero_cartao" in solicitacao
-        assert "numero_conselho" in solicitacao
-        assert "uf_conselho" in solicitacao
-        assert "indicacao_clinica" in solicitacao
-        assert "procedimento" in solicitacao
-        assert "quantidade_solicitada" in solicitacao
-        assert "anexo_url" in solicitacao
-
         self.solicitacao = solicitacao
-        self.solicitacao["uf_conselho"] = str(Estados[solicitacao["uf_conselho"]].value)
-
-    def start_requests(self):
-        yield scrapy.Request(
-            "%s/Login.aspx?ReturnUrl=regulacaoTiss/default.aspx&Procedure=ww_usr_CheckWWWPrestador"
-            % self.base_url,
-            callback=self.parse,
-        )
+        self.item = OniautorizacaoItem()
+        self.anexo_path = None
+        self.base_url = "https://www.geap.com.br"
+        self.handle = GeapHandle()
 
     def parse(self, response):
+        try:  # valida entradas
+            self.solicitacao = helpers.str_to_json(self.solicitacao)
+            error = self.handle.validar_inicio_execucao(self.solicitacao)
+            if error:
+                self.item["erro"] = str(error)
+                return self.item
+            self.solicitacao["uf_conselho"] = str(
+                Estados[self.solicitacao["uf_conselho"]].value
+            )
+        except Exception as error:
+            self.item["erro"] = str(error)
+            return self.item
+
         form_autenticacao = helpers.json_file_to_dict("autenticacao")
         return scrapy.FormRequest.from_response(
             response, formdata=form_autenticacao, callback=self.abrir_formulario
@@ -67,29 +70,25 @@ class GeapSpider(scrapy.Spider):
         ] = self.solicitacao["procedimento"]
         formulario[
             "TabContainerControl1$TabProcedimento$QtdSolicitadaGridRegulacao"
-        ] = self.solicitacao["quantidade_solicitada"]
+        ] = str( self.solicitacao["quantidade_solicitada"] )
 
         return scrapy.FormRequest.from_response(
             response, method="POST", formdata=formulario, callback=self.verificar_anexo
         )
 
     def verificar_anexo(self, response):
-        id_solicitacao = (
-            response.selector.xpath('//*[@id="NroGspSolicitacao"]/@value').get()
-        )
-        nro_cartao = (
-            response.selector.xpath(
-                '//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value'
-            ).get()
-        )
-        nro_contratado = (
-            response.selector.xpath(
-                '//*[@id="NroContratadoPrestadorExecutante"]/@value'
-            ).get()
-        )
+        id_solicitacao = response.selector.xpath(
+            '//*[@id="NroGspSolicitacao"]/@value'
+        ).get()
+        nro_cartao = response.selector.xpath(
+            '//*[@id="TabContainerControl1_TabGeral_NroCartao"]/@value'
+        ).get()
+        nro_contratado = response.selector.xpath(
+            '//*[@id="NroContratadoPrestadorExecutante"]/@value'
+        ).get()
 
         if id_solicitacao and nro_cartao and nro_contratado:
-            logging.info("id da solicitacao => {}".format(id_solicitacao))
+            self.item["numero_guia"] = id_solicitacao
             base = "%s/regulacaotiss/Anexacao_Laudo/AnexaLaudo.aspx" % self.base_url
             bind = (
                 "?NroCartao={cartao}&NroGspSolicitacao={id}&NroContratado={contratado}"
@@ -101,8 +100,8 @@ class GeapSpider(scrapy.Spider):
             return response.follow(url=url, callback=self.anexar)
 
     def anexar(self, response):
-        path = helpers.save_pdf_from_url(self.solicitacao["anexo_url"])
-        file_name = path.split("/")[-1]
+        self.anexo_path = helpers.save_pdf_from_url(self.solicitacao["anexo_url"])
+        file_name = self.anexo_path.split("/")[-1]
         inputs = helpers.get_all_inputs_from_response(response)
         viewstate = inputs["__VIEWSTATE"]
         viewstategenerator = inputs["__VIEWSTATEGENERATOR"]
@@ -110,7 +109,7 @@ class GeapSpider(scrapy.Spider):
         files = {
             "__VIEWSTATE": (None, viewstate),
             "__VIEWSTATEGENERATOR": (None, viewstategenerator),
-            "fupDoc": (file_name, open(path, "rb"), "application/pdf"),
+            "fupDoc": (file_name, open(self.anexo_path, "rb"), "application/pdf"),
             "btnAdicionar.x": (None, "12"),
             "btnAdicionar.y": (None, "8"),
         }
@@ -122,7 +121,6 @@ class GeapSpider(scrapy.Spider):
         headers = prepare.headers
         body = prepare.body
 
-        os.remove(path)
         return scrapy.Request(
             url=response.url,
             headers=headers,
@@ -167,8 +165,9 @@ class GeapSpider(scrapy.Spider):
     def redirecionar_para_edicao(self, response, id_requisicao):
         if id_requisicao:
             base = "%s/regulacaoTiss/solicitacoes/SolicitacaoSADT.aspx" % self.base_url
-            param = "?Transaction=FormEdit&NroGspSolicitacao={}&NroTpoSolicitacao=3".format(
-                id_requisicao
+            param = (
+                "?Transaction=FormEdit&NroGspSolicitacao=%s&NroTpoSolicitacao=3"
+                % id_requisicao
             )
             return response.follow(url=base + param, callback=self.concluir_formulario)
 
@@ -189,7 +188,9 @@ class GeapSpider(scrapy.Spider):
     def verificar_resultado(self, response, id_requisicao):
         msg_error = response.selector.xpath('//*[@class="ErrorMessage"]/text()').get()
         if msg_error:
-            yield {"status": "error", "message": msg_error}
+            self.item["erro"] = re.sub(r"\r|\n|\t", "", msg_error).strip()
+            yield self.item
+
         elif id_requisicao:
             yield scrapy.FormRequest.from_response(
                 response,
@@ -215,4 +216,8 @@ class GeapSpider(scrapy.Spider):
             ).get(),
         )
         senha = match_senha.group(0) if match_senha else ""
-        yield {"numero_guia": id_requisicao, "senha": senha, "status": status}
+
+        self.item["numero_guia"] = id_requisicao
+        self.item["senha"] = senha
+        self.item["status"] = status
+        yield self.item

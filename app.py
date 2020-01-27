@@ -52,7 +52,7 @@ class GeapClass(Resource):
     def post(self):
         try:
             item = geap_spider(app.payload)
-            return {"status": "Nova Autorização criada", "item": item}
+            return item
         except KeyError as e:
             geap_name_space.abort(
                 500, e.__doc__, status="Could not save information", statusCode="500"
